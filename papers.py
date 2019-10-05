@@ -5,16 +5,17 @@ import sys
 import time
 import requests
 from bs4 import BeautifulSoup
-from openpyxl import Workbook
+#from openpyxl import Workbook
 import random
 import pickle as pck
 import re
 import numpy as np
 
-stdout = sys.stdout
-reload(sys)
-sys.setdefaultencoding('utf-8')
-sys.stdout = stdout
+#stdout = sys.stdout
+#reload(sys)
+#sys.setdefaultencoding('utf-8')
+#sys.stdout = stdout
+# python 3
 
 
 user_agent_list = [
