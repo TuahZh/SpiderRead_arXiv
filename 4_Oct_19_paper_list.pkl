@@ -2,7 +2,7 @@
 ccopy_reg
 _reconstructor
 p1
-(c__main__
+(cpapers
 Paper
 p2
 c__builtin__
