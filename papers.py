@@ -209,7 +209,9 @@ class ListPapers(object):
             self.list_paper=args[0]
         if("key_words" in kwargs):
             if ("boost" in kwargs):
-                self.add_key_words(kwargs["key_words"], boost=kwargs["boost"])
+                self.add_key_words(kwargs["key_words"], boost=\
+                                   list([kwargs["boost"][kw.lower()] \
+                                   for kw in kwargs["key_words"]]))
             else:
                 self.add_key_words(kwargs["key_words"], boost=1.)
         if("exclude_key_words" in kwargs):
@@ -416,12 +418,34 @@ class ListPapers(object):
                 if(sync):
                     self.list_paper[argsort_score[ii]].search_online()
                 print(self.list_paper[argsort_score[ii]])
+                print("The total score is: %.2f\n" % self.tot_scores[argsort_score[ii]])
         else:
             for ii in range(n):
                 if(sync):
                     self.list_paper[argsort_score[ii]].search_online()
                 print(self.list_paper[ii])
                 
+        return
+
+    def summary(self):
+        """Show some basic information about this list."""
+        print("Number of papers: %d" % len(self))
+        print("Subjects: ")
+        print(self.all_subjects())
+        print("Key words: ")
+        try:
+            print(self.key_words)
+        except AttributeError:
+            print("")
+        try:
+            print("Exclude key words: ")
+        except AttributeError:
+            print("")
+        print("Total scores:")
+        try:
+            print(self.tot_scores)
+        except:
+            print("")
         return
     
     def filter_subjects(self, subj, exclude=False):
@@ -437,10 +461,10 @@ class ListPapers(object):
             new_list = list([pp for pp in self.list_paper if not self._subj_contain(pp,subj)])
 
         try:
-            return ListPapers(new_list, key_words=self.key_words, exclude_key_words=self.exclude_key_words)
+            return ListPapers(new_list, key_words=self.key_words, exclude_key_words=self.exclude_key_words, boost=self._boost)
         except:
             try:
-                return ListPapers(new_list, key_words=self.key_words)
+                return ListPapers(new_list, key_words=self.key_words, boost=self._boost)
             except AttributeError:
                 return ListPapers(new_list)
         raise
