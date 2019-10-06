@@ -92,7 +92,11 @@ class Paper(object):
 #        title_str = str(soup.find("meta", {"name":"citation_title"})).split("\"")
         # content is in the second place
 #        title = title_str[1]
-        title = soup.find("meta", {"name":"citation_title"}).get("content").strip()
+        try:
+            title = soup.find("meta", {"name":"citation_title"}).get("content").strip()
+        except:
+            print("Warning: No title for %s" % url )
+            title = ""
         #authors
         #authors_str = str(soup.findAll("meta", {"name":"citation_author"})).split("/")
         authors_list = []
@@ -101,17 +105,35 @@ class Paper(object):
 #                # content on the second index
 #                authors_list.append(cc.split("\"")[1])
 #        print(authors_list)
-        for ss in soup.findAll("meta", {"name":"citation_author"}):
-            authors_list.append(ss.get("content").strip())
+        try:
+            for ss in soup.findAll("meta", {"name":"citation_author"}):
+                authors_list.append(ss.get("content").strip())
+        except:
+            pass
                                
         #print(soup.findAll("meta", {"name":"citation_author"}).get("content"))
-        ads_link = soup.find("a", text="NASA ADS").get('href').strip()
+        try:
+            ads_link = soup.find("a", text="NASA ADS").get('href').strip()
+        except:
+            ads_link = ""
 
-        abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
-        date = soup.find("meta", {"name":"citation_date"}).get("content").strip()
-        comments = soup.find("td", {"class":"tablecell comments mathjax"}).get_text().strip()
+        try:
+            abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
+        except:
+            abstract = ""
+        try:
+            date = soup.find("meta", {"name":"citation_date"}).get("content").strip()
+        except:
+            date = ""
+        try:
+            comments = soup.find("td", {"class":"tablecell comments mathjax"}).get_text().strip()
+        except:
+            comments = ""
         #subjects = [soup.find("span",{"class":"primary-subject"}).get_text()]
-        subjects = soup.find("td",{"class":"tablecell subjects"}).get_text().strip()
+        try:
+            subjects = soup.find("td",{"class":"tablecell subjects"}).get_text().strip()
+        except:
+            subjects = ""
         
         time.sleep(random.random()*nap)
         return (title, authors_list, ads_link, abstract, date, comments, subjects)
@@ -543,18 +565,40 @@ class PaperExt(Paper):
         plain_text = source_code.text
         soup = BeautifulSoup(plain_text)
         
-        title = soup.find("meta", {"property":"og:title"}).get("content").strip()
+        try:
+            title = soup.find("meta", {"property":"og:title"}).get("content").strip()
+        except:
+            title = ""
+            print("Warning: no title for %s" % url)
         author_list = []
-        for ss in soup.findAll("meta", {"property":"article:author"}):
-            author_list.append(ss.get("content").strip())
+        try:
+            for ss in soup.findAll("meta", {"property":"article:author"}):
+                author_list.append(ss.get("content").strip())
+        except:
+            pass
         ads_link = url
-        abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
-        date = soup.find("meta", {"property":"article:published_time"}).get("content").strip()
+        try:
+            abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
+        except:
+            abstract = ""
+        try:
+            date = soup.find("meta", {"property":"article:published_time"}).get("content").strip()
+        except:
+            date = ""
         comments = ""
-        std_key_words_list = list(ss.get("content").strip() for ss in \
+        try:
+            std_key_words_list = list(ss.get("content").strip() for ss in \
                                   soup.findAll("meta", {"name":"citation_keywords"}))
-        doi = soup.find("meta", {"name":"citation_doi"}).get("content").strip()
-        ads_pdf_url = soup.find("meta", {"name":"citation_pdf_url"})
+        except:
+            std_key_words_list = ""
+        try:
+            doi = soup.find("meta", {"name":"citation_doi"}).get("content").strip()
+        except:
+            doi = ""
+        try:
+            ads_pdf_url = soup.find("meta", {"name":"citation_pdf_url"})
+        except:
+            ads_pdf_url = ""
         arxiv_id_sp = soup.find("a", text=re.compile("arXiv*"))
         try:
             arxiv_id = arxiv_id_sp.get_text().strip()
@@ -563,7 +607,10 @@ class PaperExt(Paper):
                 arxiv_id = ""
             else:
                 raise e
-        bibcode_sp = soup.find("i", {"title":"The bibcode is assigned by the ADS as a unique identifier for the paper."})
+        try:
+            bibcode_sp = soup.find("i", {"title":"The bibcode is assigned by the ADS as a unique identifier for the paper."})
+        except:
+            print("Warning: Bibcode not found for %s" % url)
         try:
             ads_id = bibcode_sp.find_previous_sibling("a").get_text().strip()
         except:
