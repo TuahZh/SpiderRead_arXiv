@@ -88,7 +88,7 @@ class Paper(object):
             return ("", [], "", "", "", "", "")
         
         plain_text = source_code.text
-        soup = BeautifulSoup(plain_text)
+        soup = BeautifulSoup(plain_text, "html.parser")
 
 #        title_str = str(soup.find("meta", {"name":"citation_title"})).split("\"")
         # content is in the second place
@@ -140,7 +140,7 @@ class Paper(object):
         return (title, authors_list, ads_link, abstract, date, comments, subjects)
     
     def __repr__(self):
-        return "<Paper id:%s link:%s>" % (self.arxiv_id, self.link)
+        return "<Paper id:%s arxiv_link:%s>" % (self.arxiv_id, self.link)
     
     def __str__(self):
         return "ID: %s\nTitle: %s\nAuthors: %s\nDate: %s\nAbstract: %s\nComments: %s\nLink: %s\nSubjects: %s\n" %             (self.arxiv_id, self.title, self._authors_in_line(), self.date, self.abstract,             self.comments, self.link, self.subjects)
@@ -176,7 +176,7 @@ def arxiv_reading(url=None, nap=5.):
     source_code = requests.get(url, headers=header) 
     #time.sleep(np.random.rand()*10)
     plain_text = source_code.text
-    soup = BeautifulSoup(plain_text)
+    soup = BeautifulSoup(plain_text, "html.parser")
     time_str = soup.find("h3").get_text().strip()
     print(time_str)
     paper_list = []
@@ -437,6 +437,11 @@ class ListPapers(object):
     
     def head(self, n=3, score=True, sync=False, fetch=False):
         """Show the first n papers on the list according to total scores or not"""
+        try:
+            self.tot_scores
+        except:
+            print("No score to be evaluated.")
+            score=False
         if(score):
             argsort_score = np.argsort(-np.array(self.tot_scores))
             for ii in range(n):
@@ -518,6 +523,6 @@ class ListPapers(object):
 #    def __iter__(self):
 #        pass
 
-    def __getitem(self, index):
+    def __getitem__(self, index):
         return self.list_paper[index]
 

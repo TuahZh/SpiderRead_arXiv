@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import WebDriverException
 
 # Webdriver use chrome
-exec_path = r"/usr/local/bin/chromedriver"
+driver_exec_path = r"/usr/local/bin/chromedriver"
 
 def ads_get_ref_cit(url, nap=5.):
     """Get the reference list or citation list from ADS."""
@@ -31,7 +31,7 @@ def ads_get_ref_cit(url, nap=5.):
         ## Wait for respond
         #time.sleep(wait_for_response)
         source_code = driver.page_source
-        soup = BeautifulSoup(source_code)
+        soup = BeautifulSoup(source_code, "html.parser")
 
         bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
         # Maximum is 500
@@ -62,7 +62,7 @@ def ads_get_ref_cit(url, nap=5.):
                 break
             time.sleep(wait_for_response)
             source_code = driver.page_source
-            soup = BeautifulSoup(source_code)
+            soup = BeautifulSoup(source_code, "html.parser")
             bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
             print("The number of current page is ", len(bibcode_list_sp))
             for bb in bibcode_list_sp:
@@ -106,12 +106,13 @@ class PaperExt(Paper):
             self.link_ads = url+ads_id
             (self.reference_url, self.citation_url) = self.get_ref_cit_url(ads_id)
             self._find_ads_page(ads_id, self.link_ads)
+            self.bib_text = self._get_bib(self.ads_id, self.get_bib_url(self.ads_id))
             #print(self.arxiv_id)
         else:
             # arxiv_id provided
             self.get_ads_id()
             (self.reference_url, self.citation_url) = self.get_ref_cit_url(self.ads_id)
-        pass
+            self.bib_text = self._get_bib(self.ads_id, self.get_bib_url(self.ads_id))
 
     def get_ads_id(self):
         """Get the ads bibcode as an id. And get something from ads page by the way."""
@@ -119,11 +120,38 @@ class PaperExt(Paper):
             self.doi, self.arxiv_id, self.ads_pdf_url, self.ads_id) = \
             self._read_ads_page("",self.ads_link)
 
+    def get_bib_url(self, ads_id):
+        """Return the link for export citation."""
+        return self._url_prefix+ads_id.strip()+"/exportcitation"
+
     def get_ref_cit_url(self, ads_id):
         """Return the link to refernce and citation page of an ads_id"""
         return (self._url_prefix+ads_id.strip()+"/references", self._url_prefix+ads_id.strip()+"/citations")
 
         #https://ui.adsabs.harvard.edu/abs/2010ApJ...714..320A/references
+
+    def _get_bib(self, ads_id, url):
+        """Get the export citation as bib format."""
+        return self._read_bib_page(ads_id, url, nap=self.nap_interval)
+
+    @staticmethod
+    def _read_bib_page(ads_id, url, nap=5.):
+        """Read the bib citation"""
+        header = {'User-Agent':random.choice(user_agent_list)}
+        try:
+            source_code = requests.get(url, headers=header)
+            source_code.raise_for_status()
+        except HTTPError as e:
+            print(e)
+            return ""
+
+        plain_text = source_code.text
+        soup = BeautifulSoup(plain_text, "html.parser")
+        try:
+            cite_bib = soup.find("textarea", {"class":"export-textarea form-control"}).get_text().strip()
+            return cite_bib
+        except:
+            return ""
 
     def _find_ads_page(self, ads_id, url):
         """Find a page on ads"""
@@ -143,7 +171,7 @@ class PaperExt(Paper):
             print(e)
             return ("", [], "", "", [], "", "", "", "")
         plain_text = source_code.text
-        soup = BeautifulSoup(plain_text)
+        soup = BeautifulSoup(plain_text, "html.parser")
 
         try:
             title = soup.find("meta", {"property":"og:title"}).get("content").strip()
