@@ -83,7 +83,7 @@ class Paper(object):
         try:
             source_code = requests.get(url, headers=header)
             source_code.raise_for_status()
-        except HTTPError as e:
+        except Exception as e:
             print(e)
             return ("", [], "", "", "", "", "")
         
@@ -152,12 +152,12 @@ class Paper(object):
             s += cc+"; "
         return s[:-2]
         
-    def search_online(self):
+    def search_online(self, url_prefix="https://arxiv.org/abs/"):
         """Search online according to the arxiv id"""
         if(self.arxiv_id==""):
             print("The id is empty!")
             return 0
-        self._find_paper(self.arxiv_id, self._url_prefix)
+        self._find_paper(self.arxiv_id, url_prefix)
         return 1
     
     def customized_fields(self, key_name, value):
@@ -369,7 +369,7 @@ class ListPapers(object):
                 self.scores[kw][ii] = self._idf(self._kw_n(kw), self.tot_num)*                                 self._boost[kw]*self._tfnorm(kw, self.list_paper[ii], self.aver_length())
                 
         self._update_tot_scores()
-        return self.scores[kw]
+        return
     
     def _update_tot_scores(self):
 

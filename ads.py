@@ -110,15 +110,19 @@ class PaperExt(Paper):
             #print(self.arxiv_id)
         else:
             # arxiv_id provided
+            print("From arxiv id %s to ADS bibcode ..." %self.arxiv_id)
             self.get_ads_id()
+            print(self.ads_id)
             (self.reference_url, self.citation_url) = self.get_ref_cit_url(self.ads_id)
             self.bib_text = self._get_bib(self.ads_id, self.get_bib_url(self.ads_id))
 
     def get_ads_id(self):
         """Get the ads bibcode as an id. And get something from ads page by the way."""
+        if(self.link_ads==""):
+            self.search_online()
         (self.title, self.authors, self.abstract, self.date, self.std_keywords, \
             self.doi, self.arxiv_id, self.ads_pdf_url, self.ads_id) = \
-            self._read_ads_page("",self.ads_link)
+            self._read_ads_page("", self.link_ads, use_driver=True)
 
     def get_bib_url(self, ads_id):
         """Return the link for export citation."""
@@ -141,7 +145,7 @@ class PaperExt(Paper):
         try:
             source_code = requests.get(url, headers=header)
             source_code.raise_for_status()
-        except HTTPError as e:
+        except Exception as e:
             print(e)
             return ""
 
@@ -161,36 +165,58 @@ class PaperExt(Paper):
         return
 
     @staticmethod
-    def _read_ads_page(ads_id, url, nap=5.):
+    def _read_ads_page(ads_id, url, nap=5., use_driver=False):
         """Read from an ADS abstract page."""
         header = {'User-Agent':random.choice(user_agent_list)}
-        try:
-            source_code = requests.get(url, headers=header)
-            source_code.raise_for_status()
-        except HTTPError as e:
-            print(e)
-            return ("", [], "", "", [], "", "", "", "")
-        plain_text = source_code.text
+        if (use_driver):
+            try:
+                options = Options()
+                options.add_argument(f'user-agent='+random.choice(user_agent_list))
+                driver = webdriver.Chrome(chrome_options=options, executable_path=driver_exec_path)
+                #driver = webdriver.Chrome(executable_path=r"/usr/local/bin/chromedriver")
+                driver.get(url)
+                element = WebDriverWait(driver, 50).until(
+                    EC.presence_of_element_located((By.XPATH, '//meta[@name="citation_title"]'))
+                    )
+                plain_text = driver.page_source
+            except Exception as e:
+                print(e)
+                return ("", [], "", "", [], "", "", "", "")
+            finally:
+                driver.quit()
+        else:
+            try:
+                source_code = requests.get(url, time.sleep(nap), headers=header)
+                source_code.raise_for_status()
+            except Exception as e:
+                print(e)
+                return ("", [], "", "", [], "", "", "", "")
+    #        time.sleep(random.random()*nap)
+            plain_text = source_code.text
         soup = BeautifulSoup(plain_text, "html.parser")
 
         try:
-            title = soup.find("meta", {"property":"og:title"}).get("content").strip()
+            #title = soup.find("meta", {"property":"og:title"}).get("content").strip()
+            title = soup.find("meta", {"name":"citation_title"}).get("content").strip()
         except:
             title = ""
             print("Warning: no title for %s" % url)
         author_list = []
         try:
-            for ss in soup.findAll("meta", {"property":"article:author"}):
+#            for ss in soup.findAll("meta", {"property":"article:author"}):
+            for ss in soup.findAll("meta", {"name":"citation_author"}):
                 author_list.append(ss.get("content").strip())
         except:
             pass
         ads_link = url
         try:
-            abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
+#            abstract = soup.find("meta", {"property":"og:description"}).get("content").strip()
+            abstract = soup.find("meta", {"name":"description"}).get("content").strip()
         except:
             abstract = ""
         try:
-            date = soup.find("meta", {"property":"article:published_time"}).get("content").strip()
+#            date = soup.find("meta", {"property":"article:published_time"}).get("content").strip()
+            date = soup.find("meta", {"name":"citation_publication_date"}).get("content").strip()
         except:
             date = ""
         comments = ""
@@ -204,7 +230,7 @@ class PaperExt(Paper):
         except:
             doi = ""
         try:
-            ads_pdf_url = soup.find("meta", {"name":"citation_pdf_url"})
+            ads_pdf_url = soup.find("meta", {"name":"citation_pdf_url"}).get("content").strip()
         except:
             ads_pdf_url = ""
         arxiv_id_sp = soup.find("a", text=re.compile("arXiv*"))
@@ -217,14 +243,16 @@ class PaperExt(Paper):
                 raise e
         try:
             bibcode_sp = soup.find("i", {"title":"The bibcode is assigned by the ADS as a unique identifier for the paper."})
+            if(bibcode_sp==None):
+                bibcode_sp = soup.find("i", {"data-content":"The bibcode is assigned by the ADS as a unique identifier for the paper."})
         except:
             print("Warning: Bibcode not found for %s" % url)
         try:
             ads_id = bibcode_sp.find_previous_sibling("a").get_text().strip()
         except:
-            pass
+            print("Warning: Bibcode not found for %s" % url)
         #print(ads_id)
-        time.sleep(random.random()*nap)
+        time.sleep(nap)
         return (title, author_list, abstract, date, std_key_words_list, doi, arxiv_id, ads_pdf_url, ads_id)
 
     def access_arxiv(self, change_prefix=False, use_date="ads"):
