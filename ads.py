@@ -112,7 +112,7 @@ class PaperExt(Paper):
             # arxiv_id provided
             print("From arxiv id %s to ADS bibcode ..." %self.arxiv_id)
             self.get_ads_id()
-            print(self.ads_id)
+            print(self.ads_id, self.arxiv_id)
             (self.reference_url, self.citation_url) = self.get_ref_cit_url(self.ads_id)
             self.bib_text = self._get_bib(self.ads_id, self.get_bib_url(self.ads_id))
 
@@ -121,7 +121,7 @@ class PaperExt(Paper):
         if(self.link_ads==""):
             self.search_online()
         (self.title, self.authors, self.abstract, self.date, self.std_keywords, \
-            self.doi, self.arxiv_id, self.ads_pdf_url, self.ads_id) = \
+            self.doi, _ , self.ads_pdf_url, self.ads_id) = \
             self._read_ads_page("", self.link_ads, use_driver=True)
 
     def get_bib_url(self, ads_id):
@@ -159,9 +159,14 @@ class PaperExt(Paper):
 
     def _find_ads_page(self, ads_id, url):
         """Find a page on ads"""
-        (self.title, self.authors, self.abstract, self.date, self.std_keywords, \
-            self.doi, self.arxiv_id, self.ads_pdf_url, _) = \
-            self._read_ads_page(ads_id, self.link_ads, nap=self.nap_interval)
+        if (self.arxiv_id!=""):
+            (self.title, self.authors, self.abstract, self.date, self.std_keywords, \
+                self.doi, _, self.ads_pdf_url, _) = \
+                self._read_ads_page(ads_id, self.link_ads, nap=self.nap_interval)
+        else:
+            (self.title, self.authors, self.abstract, self.date, self.std_keywords, \
+                self.doi, self.arxiv_id, self.ads_pdf_url, _) = \
+                self._read_ads_page(ads_id, self.link_ads, nap=self.nap_interval)
         return
 
     @staticmethod
@@ -283,6 +288,256 @@ class PaperExt(Paper):
         """Read from a list page on ADS"""
         pass
 
-# Extend list
+#import copy
+
+#driver_exec_path = r"/usr/local/bin/chromedriver"
+
 class ListPapersExt(ListPapers):
-    pass
+    """Extend the ListPapers to ADS fields"""
+    def __init__(self, *args, **kwargs):
+        if(len(args)>0):
+            if(type(args[0]) is ListPapers):
+                attr_dict = args[0].__dict__
+                for kk in attr_dict:
+                    setattr(self, kk, attr_dict[kk])
+                # make all the Paper to PaperExt
+            else:
+                super().__init__(*args, **kwargs)
+        else:
+            super().__init__()
+        # make sure papers are all
+        for ii in range(len(self)):
+            if (type(self.list_paper[ii]) is Paper):
+                self.list_paper[ii] = PaperExt(arxiv_id=self.list_paper[ii].arxiv_id)
+
+    def filter_std_key_words(self, std_kw, exclude=False):
+        """Make a new ListPaperExt object with the keywords in std_kw_list.
+        Or exclude them.
+        std_kw:   accept list of str
+                  or str
+        """
+        if (type(std_kw) is str):
+            std_kw = [std_kw]
+        if (not exclude):
+            new_list = list([pp for pp in self.list_paper if self._std_kw_contain(pp, std_kw)])
+        else:
+            new_list = list([pp for pp in self.list_paper if not self._std_kw_contain(pp, std_kw)])
+        try:
+            return ListPapersExt(new_list, key_words=self.key_words, exclude_key_words=self.exclude_key_words, boost=self._boost)
+        except:
+            try:
+                return ListPapersExt(new_list, key_words=self.key_words, boost=self._boost)
+            except AttributeError:
+                return ListPapersExt(new_list)
+        raise
+
+    def _std_kw_contain(self, pp, kw):
+        """Return True if a paper pp contains any of kw as std_keywords."""
+        # kw is a list
+        for kk in kw:
+            if (kk in pp.std_keywords):
+                return True
+        return False
+
+    def all_std_keywords(self):
+        """Show all the std key words from ADS"""
+        try:
+            self.std_kw_list
+        except AttributeError:
+            self.std_kw_list = []
+        for pp in self.list_paper:
+            #std_kw = [cc.strip() for cc in pp.std_keywords]
+            for ss in pp.std_keywords:
+                if (ss not in self.std_kw_list):
+                    self.std_kw_list.append(ss)
+        return self.std_kw_list
+
+    def summary(self):
+        """Change the way it summarizes."""
+        super().summary()
+        print("Common keywords: ")
+        try:
+            print(self.all_std_keywords())
+        except:
+            print("")
+
+    @staticmethod
+    def ext_ads_get_ref_cit(url, nap=5.):
+        """Get the reference list or citation list from ADS."""
+        wait_for_response = 10. #sec
+        try:
+            t0 = time.time()
+            options = Options()
+            options.add_argument(f'user-agent='+random.choice(user_agent_list))
+            driver = webdriver.Chrome(chrome_options=options, executable_path=driver_exec_path)
+            #driver = webdriver.Chrome(executable_path=r"/usr/local/bin/chromedriver")
+            driver.get(url)
+            element = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located((By.CLASS_NAME, 's-results-title'))
+                )
+            #el_per_page = driver.find_element_by_id("per-page-select")
+            #el_per_page_500 = el_per_page.find_element_by_xpath("//select[@name='per-page-select']/option[text()='500']")
+            #el_per_page_500.click()
+            ## Wait for respond
+            #time.sleep(wait_for_response)
+            source_code = driver.page_source
+            soup = BeautifulSoup(source_code, "html.parser")
+
+            bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
+            # Maximum is 500
+            page_loop = False
+            if (len(bibcode_list_sp) >= 25):
+                #print("Warning: this page has at least 500 papers, which means the list could be larger than that.")
+                page_loop = True
+
+            print("The number of current page is ", len(bibcode_list_sp))
+
+            paper_list = []
+            count = 0
+            for bb in bibcode_list_sp:
+                tt = time.time()
+                paper1 = PaperExt(ads_id=bb.get_text().strip(), nap=pl_nap(tt-t0, nap))
+                paper_list.append(paper1)
+                print(count, paper1.title)
+                count += 1
+
+            count_page = 0
+            while(page_loop):
+                count_page += 1
+                print("Page read ", count_page)
+                np_button = driver.find_element(By.XPATH, "//li/a[@class='page-control next-page']")
+                try:
+                    np_button.click()
+                except WebDriverException:
+                    break
+                time.sleep(wait_for_response)
+                source_code = driver.page_source
+                soup = BeautifulSoup(source_code, "html.parser")
+                bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
+                print("The number of current page is ", len(bibcode_list_sp))
+                for bb in bibcode_list_sp:
+                    tt = time.time()
+                    paper1 = PaperExt(ads_id=bb.get_text().strip(), nap=pl_nap(tt-t0, nap))
+                    paper_list.append(paper1)
+                    print(count, paper1.title)
+                    count += 1
+                if (count_page>400):
+                    print("Warning: Pages exceed 400. Citation is over 10000. I quit.")
+                    break
+        except:
+            raise
+        finally:
+            driver.quit()
+
+        print("Sleep...")
+        time.sleep(random.random()*nap)
+        print("Awake...")
+        return ListPapersExt(paper_list)
+
+    def export_bib(self, file_name="cite.bib", change_index=False):
+        """Based on PaperExt"""
+        with open(file_name, "w") as f:
+            f.write("%% This file is created by 'export_bib' function in ListPapersExt module.\n\n")
+            for pp in self.list_paper:
+                if(type(pp) is not PaperExt):
+                    print("Warning: paper may not contain any citation text.")
+                    continue
+                if(pp.bib_text==""):
+                    print("Warning: no bib information available.")
+                f.write(pp.bib_text)
+                f.write("\n\n")
+        return
+
+    @staticmethod
+    def _change_index(*args, to_format="author+year"):
+        """Index change to other format.
+        Args[0] is the text, args[1] is bibcode, args[2] is authors, args[3] is year"""
+        if(to_format=="arxiv"):
+            pass
+        else:
+            pass
+
+    def _ads_id_list(self):
+        return [pp.ads_id for pp in self.list_paper]
+
+    def _arxiv_id_list(self):
+        return [pp.arxiv_id for pp in self.list_paper]
+
+    def _ids_list(self):
+        return self._ads_id_list()+self._arxiv_id_list()
+
+    def __add__(self, other_listpaper):
+        """Enable add. Exclude duplicate."""
+        #new_list = #copy.deepcopy(other_listpaper.list_paper)
+        new_list = [pp for pp in other_listpaper.list_paper \
+                        if not self._contain_paper(pp)]
+        #for pp in other_listpaper.list_paper:
+        #    if ((pp.arxiv_id in self._ids_list()) or (pp.ads_id in self._ids_list())):
+        return ListPapersExt(self.list_paper+list(new_list))
+
+    def _contain_paper(self, pp):
+        """Return True if this list contain a paper."""
+        try:
+            if(pp.ads_id in self._ads_id_list()):
+                return True
+        except:
+            if(pp.arxiv_id in self._arxiv_id_list()):
+                return True
+        return False
+
+    @staticmethod
+    def dig_deep(pp, nap=5., deep=1, only=False):
+        """Loop the search for referencs and citations"""
+        if (type(pp) is not PaperExt):
+            raise TypeError("Paper need to be PaperExt!")
+
+        # nap should be a function
+        output_lp = ListPapersExt()
+        while(deep>1):
+            deep -= 1
+            for ppp in ListPapersExt.dig_deep(pp, nap=nap, deep=deep, only=only).list_paper:
+                output_lp = output_lp + ListPapersExt.dig_deep(ppp, nap=nap, deep=deep)
+
+        if (only=="reference"):
+            return ListPapersExt.ext_ads_get_ref_cit(pp.reference_url, nap=nap)
+        elif (only=="citation"):
+            return ListPapersExt.ext_ads_get_ref_cit(pp.citation_url, nap=nap)
+        else:
+            return ListPapersExt.ext_ads_get_ref_cit(pp.reference_url, nap=nap) + \
+                    ListPapersExt.ext_ads_get_ref_cit(pp.citation_url, nap=nap)
+
+    def check_duplicate(self):
+        """Check duplicate by ADS ID"""
+        tmp_ads_id_list = list(self._ads_id_list())
+        for pp in self.list_paper:
+            if(pp.ads_id==""):
+                if (pp.arxiv_id==""):
+                    print("Who are you? %s.", pp.title)
+                else:
+                    pp.get_ads_id()
+                    if((pp.ads_id!="") and (pp.ads_id in tmp_ads_id_list)):
+                        self.delete(pp)
+                        print("Deleting %s" % pp.ads_id)
+
+        num_no_ads_id = sum([1 for pp in self.list_paper if pp.ads_id==""])
+        print("There are %d papers without ads id." % num_no_ads_id)
+
+    def delete(self, pp):
+        """Delete a paper"""
+        self.list_paper.remove(pp)
+        self.tot_num = len(self.list_paper)
+        self.recal_scores()
+        return 1
+
+    def recal_scores(self):
+        """Calculate the scores again."""
+        #self.key_words
+        #self._boost
+        del self.scores
+        del self.tot_score
+        del self.aver_length
+        for kk in self.key_words:
+            self.cal_key_word_scores(kk)
+        for kk in self.exclude_kws:
+            self.cal_key_word_scores(kk, exclude=True)
+        self._update_tot_scores()
