@@ -365,26 +365,36 @@ class ListPapersExt(ListPapers):
     def ext_ads_get_ref_cit(url, nap=5.):
         """Get the reference list or citation list from ADS."""
         wait_for_response = 10. #sec
-        try:
+        trytime = 3
+        while(trytime>0):
+            trytime-=1
             t0 = time.time()
             options = Options()
             options.add_argument(f'user-agent='+random.choice(user_agent_list))
             driver = webdriver.Chrome(chrome_options=options, executable_path=driver_exec_path)
             #driver = webdriver.Chrome(executable_path=r"/usr/local/bin/chromedriver")
-            driver.get(url)
-            element = WebDriverWait(driver, 50).until(
-                EC.presence_of_element_located((By.CLASS_NAME, 's-results-title'))
-                )
+            try:
+                driver.get(url)
+                element = WebDriverWait(driver, 50).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, 's-results-title'))
+                    )
+            except Exception as e:
+                print(e)
             #el_per_page = driver.find_element_by_id("per-page-select")
             #el_per_page_500 = el_per_page.find_element_by_xpath("//select[@name='per-page-select']/option[text()='500']")
             #el_per_page_500.click()
             ## Wait for respond
             #time.sleep(wait_for_response)
+
             source_code = driver.page_source
             soup = BeautifulSoup(source_code, "html.parser")
 
             bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
             # Maximum is 500
+            if(bibcode_list_sp==None):
+                bibcode_list_sp = []
+            else:
+                trytime = 0
             page_loop = False
             if (len(bibcode_list_sp) >= 25):
                 #print("Warning: this page has at least 500 papers, which means the list could be larger than that.")
@@ -414,6 +424,8 @@ class ListPapersExt(ListPapers):
                 source_code = driver.page_source
                 soup = BeautifulSoup(source_code, "html.parser")
                 bibcode_list_sp = soup.findAll("a", {"aria-label":"bibcode"})
+                if(bibcode_list_sp==None):
+                    bibcode_list_sp = []
                 print("The number of current page is ", len(bibcode_list_sp))
                 for bb in bibcode_list_sp:
                     tt = time.time()
@@ -424,10 +436,12 @@ class ListPapersExt(ListPapers):
                 if (count_page>400):
                     print("Warning: Pages exceed 400. Citation is over 10000. I quit.")
                     break
-        except:
-            raise
-        finally:
+#        except Exception as e:
+#            paper_list = []
+#            print(e)
+#        finally:
             driver.quit()
+
 
         print("Sleep...")
         time.sleep(random.random()*nap)
