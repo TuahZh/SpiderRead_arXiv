@@ -217,9 +217,9 @@ def arxiv_reading(url=None, nap=5.):
         #print(paper1)        
         paper_list.append(paper1)
 
-    print("Sleep...")
+    print("Fetching...")
     time.sleep(random.random()*nap)
-    print("Awake...")
+    print("Done...")
     return paper_list, time_str
 
 
@@ -435,8 +435,43 @@ class ListPapers(object):
                 searched_list.append(pp)
         return searched_list
     
-    def head(self, n=3, score=True, sync=False, fetch=False):
+    def head(self, n=3, score=True, sync=False, fetch=False, called_tk=False):
         """Show the first n papers on the list according to total scores or not"""
+#        res = {}
+#        res['list_paper'] = []
+#        try:
+#            self.tot_scores
+#        except:
+#            print("No score to be evaluated.")
+#            score=False
+#        if(score):
+#            argsort_score = np.argsort(-np.array(self.tot_scores))
+#            res['score'] = []
+#            for ii in range(n):
+#                if(sync):
+#                    self.list_paper[argsort_score[ii]].search_online()
+#                print(self.list_paper[argsort_score[ii]])
+#                res['list_paper'].append(self.list_paper[argsort_score[ii]])
+#                print("The total score is: %.2f\n" % self.tot_scores[argsort_score[ii]])
+#                res['score'].append(self.tot_scores[argsort_score[ii]])
+#        else:
+#            for ii in range(n):
+#                if(sync):
+#                    self.list_paper[argsort_score[ii]].search_online()
+#                print(self.list_paper[ii])
+#                res['list_paper'].append(self.list_paper[ii])
+        if(called_tk):
+            res = self.next(n=n,cur_id=0,score=score,sync=sync,fetch=fetch,called_tk=called_tk)
+            return res
+        else:
+            self.next(n=n,cur_id=0,score=score,sync=sync,fetch=fetch,called_tk=called_tk)
+            return
+
+    def next(self, n=3, cur_id=0, score=True, sync=False, fetch=False, called_tk=False):
+        """Similar to head, with an initial id indicates where is the pointer
+        head may be removed"""
+        res = {}
+        res['list_paper'] = []
         try:
             self.tot_scores
         except:
@@ -444,39 +479,73 @@ class ListPapers(object):
             score=False
         if(score):
             argsort_score = np.argsort(-np.array(self.tot_scores))
-            for ii in range(n):
+            res['score'] = []
+            for iii in range(n):
+                ii = iii+cur_id
                 if(sync):
                     self.list_paper[argsort_score[ii]].search_online()
                 print(self.list_paper[argsort_score[ii]])
+                res['list_paper'].append(self.list_paper[argsort_score[ii]])
                 print("The total score is: %.2f\n" % self.tot_scores[argsort_score[ii]])
+                res['score'].append(self.tot_scores[argsort_score[ii]])
         else:
             for ii in range(n):
                 if(sync):
                     self.list_paper[argsort_score[ii]].search_online()
                 print(self.list_paper[ii])
-                
-        return
+                res['list_paper'].append(self.list_paper[ii])
+        if(called_tk):
+            return res
+        else:
+            return
 
-    def summary(self):
+
+    def summary(self, called_tk=False):
         """Show some basic information about this list."""
+        out_str = ""
         print("Number of papers: %d" % len(self))
+        out_str += "Number of papers: %d" % len(self)
+        out_str += "\n"
         print("Subjects: ")
+        out_str += "Subjects: "
+        out_str += "\n"
         print(self.all_subjects())
+        for kk in self.all_subjects():
+            out_str += kk+"; "
+        out_str += "\n"
         print("Key words: ")
+        out_str += "Key words: "
+        out_str += "\n"
         try:
             print(self.key_words)
+            for kk in self.key_words:
+                out_str += kk+"; "
+            out_str += "\n"
         except AttributeError:
             print("")
         try:
             print("Exclude key words: ")
+            out_str += "Exclude key words: "
+            out_str += "\n"
+            print(self.exclude_kws)
+            for kk in self.exclude_kws:
+                out_str += kk+"; "
+            out_str += "\n"
         except AttributeError:
             print("")
-        print("Total scores:")
         try:
+            print("Total scores:")
+            out_str += "Total scores:\n"
             print(self.tot_scores)
+            for ss in self.tot_scores:
+                out_str += "%.2f" % ss + " "
+            out_str += "\n"
         except:
             print("")
-        return
+        if(called_tk):
+            return out_str
+        else:
+            return
     
     def filter_subjects(self, subj, exclude=False):
         """Make a new list with the subjects in subj.
